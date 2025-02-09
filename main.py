@@ -1,228 +1,149 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta
 import tensorflow as tf
-from sklearn.preprocessing import MinMaxScaler
-import joblib
-from collections import deque
 import random
-import time
-import json
+import datetime
+from collections import deque
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import IsolationForest
+import xgboost as xgb
+import torch
+import torch.nn as nn
 
-# Simulated ML Models and Data Processing
-class SystemPredictor:
+# ----------- AI Models --------------
+# Deep Learning-based System Predictor
+class DeepSystemPredictor(nn.Module):
+    def __init__(self, input_size=4, hidden_size=64, num_layers=2):
+        super(DeepSystemPredictor, self).__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, input_size)
+
+    def forward(self, x):
+        lstm_out, _ = self.lstm(x)
+        return self.fc(lstm_out[:, -1, :])
+
+# Anomaly Detection System
+class AdvancedAnomalyDetector:
     def __init__(self):
-        # Simulate trained LSTM model for system predictions
-        self.model = self._create_dummy_lstm()
+        self.model = IsolationForest(contamination=0.1, random_state=42)
         self.scaler = MinMaxScaler()
-        self.history = deque(maxlen=100)
-        
-    def _create_dummy_lstm(self):
-        model = tf.keras.Sequential([
-            tf.keras.layers.LSTM(64, input_shape=(10, 4)),
-            tf.keras.layers.Dense(32, activation='relu'),
-            tf.keras.layers.Dense(4)
-        ])
-        model.compile(optimizer='adam', loss='mse')
-        return model
-    
-    def predict_next_values(self, current_data):
-        # Simulate prediction
-        prediction = current_data * (1 + np.random.normal(0, 0.05, 4))
-        return np.clip(prediction, 0, 100)
 
-class AnomalyDetector:
-    def __init__(self):
-        self.threshold = 2.0
-        
-    def detect_anomalies(self, data):
-        # Simple anomaly detection based on z-score
-        mean = np.mean(data)
-        std = np.std(data)
-        z_scores = np.abs((data - mean) / std)
-        return z_scores > self.threshold
+    def train(self, data):
+        scaled_data = self.scaler.fit_transform(data)
+        self.model.fit(scaled_data)
 
-class MaintenancePredictor:
-    def __init__(self):
-        self.maintenance_schedule = {}
-        
-    def predict_maintenance(self, system_health):
-        # Predict days until maintenance needed
-        return max(0, 30 - (100 - system_health) * 0.5)
+    def detect(self, data):
+        scaled = self.scaler.transform(data.reshape(1, -1))
+        return self.model.predict(scaled)[0] == -1  # True if anomaly
 
-class EmergencyResponseRL:
+# Predictive Maintenance System
+class PredictiveMaintenanceSystem:
     def __init__(self):
-        self.state_space = 4  # oxygen, power, temp, hull
-        self.action_space = 5  # different emergency responses
-        
-    def get_action(self, state):
-        # Simulate RL policy
-        return np.argmax(np.random.rand(self.action_space))
+        self.model = xgb.XGBRegressor(objective="reg:squarederror", n_estimators=100)
+        self.history = []
 
-# Data Generation and Processing
-class SensorDataSimulator:
+    def update_history(self, data, maintenance_done):
+        self.history.append({"data": data, "maintenance": maintenance_done})
+
+    def predict_maintenance(self, current_data):
+        if len(self.history) > 5:
+            X = np.array([h["data"] for h in self.history])
+            y = np.array([h["maintenance"] for h in self.history])
+            self.model.fit(X, y)
+            return self.model.predict(current_data.reshape(1, -1))[0]
+        return 0.5  # Default if not enough data
+
+# Emergency Response System
+class EmergencyResponseSystem:
     def __init__(self):
-        self.base_values = {
-            'oxygen': 98.0,
-            'power': 87.0,
-            'temperature': 21.0,
-            'hull_integrity': 100.0
-        }
-        
-    def generate_sensor_data(self, crisis_mode=False):
-        if crisis_mode:
-            noise_factor = 0.1
-            crisis_impact = {
-                'oxygen': -6.0,
-                'power': -42.0,
-                'temperature': 6.0,
-                'hull_integrity': -4.0
-            }
-        else:
-            noise_factor = 0.01
-            crisis_impact = {k: 0 for k in self.base_values}
-            
-        return {
-            k: max(0, min(100, v + crisis_impact[k] + np.random.normal(0, noise_factor * v)))
-            for k, v in self.base_values.items()
+        self.responses = {
+            "radiation_storm": lambda severity: [
+                "Activate radiation shields",
+                "Move crew to protected areas",
+                f"Estimated duration: {severity * 10} min",
+            ],
+            "power_failure": lambda power_left: [
+                "Initiate emergency power",
+                f"Backup power remaining: {power_left}%",
+            ],
         }
 
-def create_app():
-    # Initialize components
-    st.set_page_config(page_title="ORION AI Control System", layout="wide")
-    
-    # Initialize AI components
-    if 'predictor' not in st.session_state:
-        st.session_state.predictor = SystemPredictor()
-        st.session_state.anomaly_detector = AnomalyDetector()
-        st.session_state.maintenance = MaintenancePredictor()
-        st.session_state.rl_agent = EmergencyResponseRL()
-        st.session_state.sensor_sim = SensorDataSimulator()
-        st.session_state.historical_data = []
-    
-    # Sidebar controls
-    st.sidebar.title("🤖 ORION AI Control Panel")
-    system_status = st.sidebar.radio("System Status", ["Normal", "Crisis Simulation"])
-    
-    # Main dashboard
-    col1, col2 = st.columns([3,1])
-    with col1:
-        st.title("🚀 ORION AI-Powered Control Interface")
-        st.subheader("Advanced Neural Network Command Center")
-    
-    # Generate current sensor data
-    current_data = st.session_state.sensor_sim.generate_sensor_data(system_status == "Crisis Simulation")
-    
-    # AI Predictions tab
-    tabs = st.tabs(["🤖 AI Analysis", "📊 System Vitals", "🔮 Predictions", "⚠️ Anomaly Detection"])
-    
+    def get_response(self, emergency_type, parameter):
+        return self.responses.get(emergency_type, lambda _: ["Unknown emergency"])(parameter)
+
+# ----------- Streamlit UI --------------
+def main():
+    st.set_page_config(page_title="ORION AI Space Operations", layout="wide")
+
+    # Initialize AI Systems
+    if "systems" not in st.session_state:
+        st.session_state.systems = {
+            "predictor": DeepSystemPredictor(),
+            "anomaly_detector": AdvancedAnomalyDetector(),
+            "maintenance": PredictiveMaintenanceSystem(),
+            "emergency": EmergencyResponseSystem(),
+        }
+        st.session_state.history = pd.DataFrame(columns=["Timestamp", "Oxygen", "Power", "Temp", "Pressure"])
+
+    # Sidebar for Data Input
+    st.sidebar.header("📌 Enter System Data")
+    oxygen = st.sidebar.slider("Oxygen Level (%)", 80, 100, 95)
+    power = st.sidebar.slider("Power Level (%)", 50, 100, 85)
+    temp = st.sidebar.slider("Temperature (°C)", 15, 30, 22)
+    pressure = st.sidebar.slider("Pressure (kPa)", 80, 120, 101)
+
+    if st.sidebar.button("Submit Data"):
+        new_data = pd.DataFrame(
+            [[datetime.datetime.now(), oxygen, power, temp, pressure]],
+            columns=["Timestamp", "Oxygen", "Power", "Temp", "Pressure"],
+        )
+        st.session_state.history = pd.concat([st.session_state.history, new_data], ignore_index=True)
+
+    # Dashboard Tabs
+    tabs = st.tabs(["📊 System Analytics", "⚠️ Anomaly Detection", "🔮 Predictions", "🚨 Emergency Response"])
+
+    # System Analytics
     with tabs[0]:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Real-Time AI Analysis")
-            predictions = st.session_state.predictor.predict_next_values(
-                np.array(list(current_data.values()))
-            )
-            
-            # Display AI insights
-            st.write("### 🧠 Neural Network Insights")
-            for system, (current, predicted) in zip(current_data.keys(), zip(current_data.values(), predictions)):
-                delta = predicted - current
-                st.metric(
-                    f"{system.replace('_', ' ').title()}",
-                    f"{current:.1f}%",
-                    f"{delta:+.1f}% (AI Predicted)",
-                    delta_color="normal" if abs(delta) < 5 else "inverse"
-                )
-        
-        with col2:
-            st.subheader("Maintenance Predictions")
-            for system, health in current_data.items():
-                days = st.session_state.maintenance.predict_maintenance(health)
-                st.progress(max(0, min(100, days/30)))
-                st.write(f"{system.title()}: {days:.1f} days until maintenance")
-    
+        st.subheader("📊 System Analytics - User Data")
+        st.dataframe(st.session_state.history)
+        if not st.session_state.history.empty:
+            fig = px.line(st.session_state.history, x="Timestamp", y=["Oxygen", "Power", "Temp", "Pressure"], title="System Health Metrics")
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Anomaly Detection
     with tabs[1]:
-        # Historical data visualization
-        st.session_state.historical_data.append(current_data)
-        if len(st.session_state.historical_data) > 100:
-            st.session_state.historical_data.pop(0)
-            
-        df = pd.DataFrame(st.session_state.historical_data)
-        fig = px.line(df, title="System Vitals - Real-Time Monitoring")
-        st.plotly_chart(fig, use_container_width=True)
-    
+        st.subheader("⚠️ Anomaly Detection")
+        if not st.session_state.history.empty:
+            latest_data = st.session_state.history.iloc[-1, 1:].values.astype(float)
+            anomaly = st.session_state.systems["anomaly_detector"].detect(latest_data)
+            if anomaly:
+                st.error("🚨 Anomaly Detected in System!")
+            else:
+                st.success("✅ System is Operating Normally.")
+
+    # Predictions
     with tabs[2]:
-        st.subheader("AI Predictive Analytics")
-        # Future predictions
-        future_steps = 10
-        future_predictions = []
-        last_values = np.array(list(current_data.values()))
-        
-        for _ in range(future_steps):
-            pred = st.session_state.predictor.predict_next_values(last_values)
-            future_predictions.append(pred)
-            last_values = pred
-            
-        pred_df = pd.DataFrame(
-            future_predictions,
-            columns=current_data.keys()
-        )
-        
-        fig = px.line(pred_df, title="AI-Powered System Predictions (Next 10 Time Steps)")
-        st.plotly_chart(fig, use_container_width=True)
-    
+        st.subheader("🔮 Predictive Maintenance")
+        if not st.session_state.history.empty:
+            latest_data = st.session_state.history.iloc[-1, 1:].values.astype(float)
+            maintenance_risk = st.session_state.systems["maintenance"].predict_maintenance(latest_data)
+            st.metric("🔧 Maintenance Probability", f"{maintenance_risk * 100:.2f}%")
+            if maintenance_risk > 0.7:
+                st.warning("⚠️ High Risk: Maintenance Recommended Soon.")
+            elif maintenance_risk > 0.9:
+                st.error("🚨 Urgent Maintenance Required!")
+
+    # Emergency Response
     with tabs[3]:
-        st.subheader("Anomaly Detection System")
-        # Detect anomalies in current data
-        anomalies = st.session_state.anomaly_detector.detect_anomalies(
-            np.array(list(current_data.values()))
-        )
-        
-        for system, is_anomaly in zip(current_data.keys(), anomalies):
-            if is_anomaly:
-                st.error(f"⚠️ Anomaly detected in {system}")
-                
-                # Get RL agent's recommended action
-                state = np.array(list(current_data.values()))
-                action = st.session_state.rl_agent.get_action(state)
-                
-                st.write("🤖 **AI Recommended Actions:**")
-                actions = [
-                    "Reroute power to backup systems",
-                    "Initiate emergency protocols",
-                    "Activate redundant systems",
-                    "Begin system diagnostic",
-                    "Alert Earth control"
-                ]
-                st.info(f"Recommended action: {actions[action]}")
-    
-    # Emergency Protocols (Crisis Mode)
-    if system_status == "Crisis Simulation":
-        st.markdown("---")
-        st.error("🚨 **CRISIS MODE ACTIVATED - AI EMERGENCY PROTOCOLS ENGAGED**")
-        
-        # RL agent emergency response
-        state = np.array(list(current_data.values()))
-        action = st.session_state.rl_agent.get_action(state)
-        
-        st.write("### 🤖 AI Emergency Response")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Current Actions:**")
-            st.write("1. Analyzing radiation storm patterns")
-            st.write("2. Calculating optimal power distribution")
-            st.write("3. Predicting system failure points")
-            
-        with col2:
-            st.write("**AI Recommendations:**")
-            st.write("1. Immediate power redistribution to life support")
-            st.write("2. Activate backup cooling systems")
-            st.write("3. Begin automated repair sequence")
+        st.subheader("🚨 Emergency Simulation")
+        emergency_type = st.selectbox("Select Emergency Type", ["radiation_storm", "power_failure"])
+        emergency_param = st.slider("Severity/Remaining Power", 0, 100, 50)
+        if st.button("Run Emergency Simulation"):
+            response = st.session_state.systems["emergency"].get_response(emergency_type, emergency_param)
+            for action in response:
+                st.warning(action)
 
 if __name__ == "__main__":
-    create_app()
+    main()
