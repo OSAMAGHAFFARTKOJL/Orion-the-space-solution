@@ -12,6 +12,8 @@ import xgboost as xgb
 import torch
 import torch.nn as nn
 
+if "history" not in st.session_state:
+    st.session_state.history = []
 # ----------- AI Models --------------
 # Deep Learning-based System Predictor
 class DeepSystemPredictor(nn.Module):
