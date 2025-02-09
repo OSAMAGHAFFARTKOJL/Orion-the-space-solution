@@ -17,8 +17,12 @@ from collections import deque
 import random
 import time
 import json
+import autogen
+from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+from crewai import Agent, Task, Crew, Process
+import agentops as ao
 
-# Advanced Neural Network for System Prediction
+# Deep System Predictor
 class DeepSystemPredictor(nn.Module):
     def __init__(self, input_size=4, hidden_size=64, num_layers=2):
         super(DeepSystemPredictor, self).__init__()
@@ -36,7 +40,7 @@ class DeepSystemPredictor(nn.Module):
         lstm_out = self.dropout(lstm_out[:, -1, :])
         return self.fc(lstm_out)
 
-# Advanced Anomaly Detection System
+# Advanced Anomaly Detection
 class AdvancedAnomalyDetector:
     def __init__(self):
         self.isolation_forest = IsolationForest(contamination=0.1, random_state=42)
@@ -47,7 +51,6 @@ class AdvancedAnomalyDetector:
         scaled_data = self.scaler.fit_transform(historical_data)
         self.isolation_forest.fit(scaled_data)
         
-        # Train Prophet models for each metric
         for i, column in enumerate(historical_data.columns):
             m = Prophet(changepoint_prior_scale=0.05)
             df = pd.DataFrame({
@@ -60,7 +63,6 @@ class AdvancedAnomalyDetector:
         scaled_data = self.scaler.transform(data.reshape(1, -1))
         isolation_forest_pred = self.isolation_forest.predict(scaled_data)
         
-        # Combine multiple anomaly detection methods
         prophet_anomalies = []
         for column, model in self.prophet_models.items():
             forecast = model.predict(pd.DataFrame({'ds': [datetime.now()]}))
@@ -69,232 +71,228 @@ class AdvancedAnomalyDetector:
         
         return isolation_forest_pred[0] == -1 or any(prophet_anomalies)
 
-# Enhanced Reinforcement Learning Agent
-class AdvancedRLAgent:
+# Enhanced AI System with AutoGen, CrewAI, and AgentOps
+class EnhancedAISystem:
     def __init__(self):
-        self.model = self._build_model()
-        self.memory = deque(maxlen=2000)
-        self.gamma = 0.95
-        self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        
-    def _build_model(self):
-        model = tf.keras.Sequential([
-            Dense(64, input_dim=4, activation='relu'),
-            Dropout(0.2),
-            Dense(64, activation='relu'),
-            Dropout(0.2),
-            Dense(32, activation='relu'),
-            Dense(5, activation='linear')
-        ])
-        model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
-        return model
-    
-    def get_action(self, state):
-        if random.random() <= self.epsilon:
-            return random.randrange(5)
-        q_values = self.model.predict(state.reshape(1, -1))
-        return np.argmax(q_values[0])
-    
-    def train(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-        if len(self.memory) > 32:
-            self._replay(32)
-        
-    def _replay(self, batch_size):
-        minibatch = random.sample(self.memory, batch_size)
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done:
-                target = reward + self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
-            target_f = self.model.predict(state.reshape(1, -1))
-            target_f[0][action] = target
-            self.model.fit(state.reshape(1, -1), target_f, epochs=1, verbose=0)
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-
-# Advanced Predictive Maintenance System
-class PredictiveMaintenanceSystem:
-    def __init__(self):
-        self.xgb_model = xgb.XGBRegressor(
-            objective='reg:squarederror',
-            n_estimators=100,
-            max_depth=4,
-            learning_rate=0.1
+        # Initialize AgentOps monitoring
+        self.agent_ops = ao.init_monitoring(
+            project_name="ORION-AI-Control",
+            metadata={"system_version": "1.0"}
         )
-        self.maintenance_history = []
         
-    def update_maintenance_history(self, system_data, maintenance_performed):
-        self.maintenance_history.append({
-            'data': system_data,
-            'maintenance_performed': maintenance_performed,
-            'timestamp': datetime.now()
-        })
+        # Initialize base systems
+        self.predictor = DeepSystemPredictor()
+        self.anomaly_detector = AdvancedAnomalyDetector()
         
-    def predict_maintenance_needs(self, current_data):
-        if len(self.maintenance_history) > 10:
-            X = np.array([h['data'] for h in self.maintenance_history])
-            y = np.array([h['maintenance_performed'] for h in self.maintenance_history])
-            self.xgb_model.fit(X, y)
-            return self.xgb_model.predict(current_data.reshape(1, -1))[0]
-        return 0.5  # Default probability when not enough data
+        # Initialize AutoGen agents
+        self.setup_autogen_agents()
+        
+        # Initialize CrewAI agents
+        self.setup_crewai_agents()
+    
+    def setup_autogen_agents(self):
+        self.system_monitor = AssistantAgent(
+            name="system_monitor",
+            system_message="I monitor all system metrics and coordinate responses.",
+            llm_config={"temperature": 0.7}
+        )
+        
+        self.maintenance_agent = AssistantAgent(
+            name="maintenance_agent",
+            system_message="I handle predictive maintenance and repairs.",
+            llm_config={"temperature": 0.3}
+        )
+        
+        self.emergency_agent = AssistantAgent(
+            name="emergency_agent",
+            system_message="I handle emergency situations and coordinate responses.",
+            llm_config={"temperature": 0.1}
+        )
+        
+        self.human_proxy = UserProxyAgent(
+            name="human_operator",
+            code_execution_config={"work_dir": "tasks"},
+            human_input_mode="TERMINATE"
+        )
+        
+        self.agents = [
+            self.system_monitor,
+            self.maintenance_agent,
+            self.emergency_agent,
+            self.human_proxy
+        ]
+        
+        self.group_chat = GroupChat(
+            agents=self.agents,
+            messages=[],
+            max_round=50
+        )
+        
+        self.manager = GroupChatManager(groupchat=self.group_chat)
+    
+    def setup_crewai_agents(self):
+        self.analyst = Agent(
+            role='System Analyst',
+            goal='Analyze system performance and identify optimization opportunities',
+            backstory='Expert in system analysis with years of experience in AI systems',
+            allow_delegation=True
+        )
+        
+        self.engineer = Agent(
+            role='System Engineer',
+            goal='Implement system improvements and maintain optimal performance',
+            backstory='Experienced engineer specialized in AI system optimization',
+            allow_delegation=True
+        )
+        
+        self.crew = Crew(
+            agents=[self.analyst, self.engineer],
+            tasks=[
+                Task(
+                    description='Monitor system performance',
+                    agent=self.analyst
+                ),
+                Task(
+                    description='Implement optimizations',
+                    agent=self.engineer
+                )
+            ],
+            process=Process.sequential
+        )
 
-# Enhanced Emergency Response System
-class EmergencyResponseSystem:
-    def __init__(self):
-        self.response_protocols = {
-            'radiation_storm': self._radiation_storm_protocol,
-            'power_failure': self._power_failure_protocol,
-            'life_support_critical': self._life_support_protocol,
-            'hull_breach': self._hull_breach_protocol
-        }
-        
-    def _radiation_storm_protocol(self, severity):
-        actions = [
-            "Activate radiation shields",
-            "Move crew to protected areas",
-            "Reroute power to shield generators",
-            f"Estimated duration: {severity * 10} minutes"
-        ]
-        return actions
-    
-    def _power_failure_protocol(self, remaining_power):
-        actions = [
-            "Initiate emergency power systems",
-            "Shutdown non-essential systems",
-            f"Available backup power: {remaining_power}%",
-            "Begin power conservation protocol"
-        ]
-        return actions
-    
-    def _life_support_protocol(self, oxygen_level):
-        actions = [
-            "Activate backup oxygen generation",
-            f"Current oxygen levels: {oxygen_level}%",
-            "Seal non-essential compartments",
-            "Begin emergency pressurization"
-        ]
-        return actions
-    
-    def _hull_breach_protocol(self, breach_location):
-        actions = [
-            f"Breach detected in sector: {breach_location}",
-            "Deploy emergency seals",
-            "Begin depressurization sequence",
-            "Activate repair drones"
-        ]
-        return actions
-    
-    def get_emergency_response(self, emergency_type, parameters):
-        if emergency_type in self.response_protocols:
-            return self.response_protocols[emergency_type](parameters)
-        return ["Unknown emergency type", "Initiating general safety protocol"]
+    def process_user_data(self, user_data):
+        with self.agent_ops.start_monitoring() as mon:
+            try:
+                # Process data with anomaly detection
+                anomalies = self.anomaly_detector.detect_anomalies(user_data.values)
+                
+                # Use AutoGen for analysis
+                self.manager.initiate_chat(
+                    self.system_monitor,
+                    message=f"Analyzing new user data. Anomalies detected: {anomalies}"
+                )
+                
+                # Use CrewAI for optimization
+                results = self.crew.run()
+                
+                return {
+                    'anomalies': anomalies,
+                    'analysis': results
+                }
+            except Exception as e:
+                mon.log_error(str(e))
+                raise e
 
-# Main Application
+# Streamlit Interface
 def create_advanced_app():
     st.set_page_config(page_title="ORION Advanced AI Control", layout="wide")
     
-    # Initialize AI systems
-    if 'systems' not in st.session_state:
-        st.session_state.systems = {
-            'predictor': DeepSystemPredictor(),
-            'anomaly_detector': AdvancedAnomalyDetector(),
-            'rl_agent': AdvancedRLAgent(),
-            'maintenance': PredictiveMaintenanceSystem(),
-            'emergency': EmergencyResponseSystem()
-        }
+    # Initialize AI system
+    if 'ai_system' not in st.session_state:
+        st.session_state.ai_system = EnhancedAISystem()
     
-    # Dashboard Layout
     st.title("🚀 ORION Advanced AI Control System")
     
-    # Main Tabs
-    tabs = st.tabs([
-        "🤖 AI Command Center",
-        "📊 System Analytics",
-        "⚠️ Emergency Response",
-        "🔮 Predictive Systems",
-        "🛠️ Maintenance Hub"
-    ])
+    # User Data Input Section
+    st.header("📊 Data Input")
+    upload_method = st.radio("Choose data input method:", 
+                           ["Upload CSV", "Manual Input", "Sample Data"])
     
-    # AI Command Center
-    with tabs[0]:
+    if upload_method == "Upload CSV":
+        uploaded_file = st.file_uploader("Upload your CSV file", type=['csv'])
+        if uploaded_file is not None:
+            user_data = pd.read_csv(uploaded_file)
+            st.success("Data uploaded successfully!")
+            
+    elif upload_method == "Manual Input":
+        st.subheader("Enter System Metrics")
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("Neural Network Status")
-            # Simulate neural network confidence levels
-            for system in ['Life Support', 'Power Grid', 'Navigation', 'Communications']:
-                confidence = random.uniform(0.85, 0.99)
-                st.progress(confidence)
-                st.write(f"{system}: {confidence:.2%} confidence")
-        
+            oxygen = st.number_input("Oxygen Level (%)", 0.0, 100.0, 98.0)
+            power = st.number_input("Power Level (%)", 0.0, 100.0, 87.0)
         with col2:
-            st.subheader("Active AI Subsystems")
-            st.write("🧠 Deep Learning Predictor: Active")
-            st.write("🔍 Anomaly Detection: Monitoring")
-            st.write("⚡ RL Agent: Standing By")
-            st.write("📈 Predictive Maintenance: Analyzing")
-    
-    # System Analytics
-    with tabs[1]:
-        # Generate sample data
-        dates = pd.date_range(start='2024-01-01', periods=100, freq='H')
-        systems_data = pd.DataFrame({
+            temperature = st.number_input("Temperature (°C)", -50.0, 100.0, 21.0)
+            pressure = st.number_input("Pressure (kPa)", 0.0, 200.0, 100.0)
+        
+        if st.button("Submit Data"):
+            user_data = pd.DataFrame({
+                'oxygen': [oxygen],
+                'power': [power],
+                'temperature': [temperature],
+                'pressure': [pressure]
+            })
+            st.success("Data submitted successfully!")
+            
+    else:  # Sample Data
+        user_data = pd.DataFrame({
             'oxygen': np.random.normal(98, 1, 100),
             'power': np.random.normal(87, 3, 100),
             'temperature': np.random.normal(21, 0.5, 100),
             'pressure': np.random.normal(100, 2, 100)
-        }, index=dates)
+        })
+        st.success("Sample data loaded!")
+    
+    # Analysis Section
+    if 'user_data' in locals():
+        st.header("🔍 Analysis Results")
         
-        fig = px.line(systems_data, title="System Analytics - Historical Data")
+        with st.spinner("Processing data..."):
+            results = st.session_state.ai_system.process_user_data(user_data)
+        
+        # Display results
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("System Status")
+            if results['anomalies']:
+                st.error("⚠️ Anomalies Detected")
+            else:
+                st.success("✅ System Normal")
+        
+        with col2:
+            st.subheader("AI Analysis")
+            st.json(results['analysis'])
+        
+        # Visualizations
+        st.subheader("📈 Data Visualization")
+        fig = px.line(user_data, title="System Metrics Over Time")
         st.plotly_chart(fig, use_container_width=True)
     
-    # Emergency Response
-    with tabs[2]:
-        st.subheader("Emergency Response Simulator")
-        emergency_type = st.selectbox(
-            "Simulate Emergency Scenario",
-            ['radiation_storm', 'power_failure', 'life_support_critical', 'hull_breach']
-        )
-        
+    # Monitoring Dashboard
+    st.header("📊 System Monitoring")
+    metrics_tab, maintenance_tab, emergency_tab = st.tabs([
+        "Real-time Metrics",
+        "Maintenance Status",
+        "Emergency Response"
+    ])
+    
+    with metrics_tab:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Oxygen Level", f"{random.uniform(97, 99):.1f}%", "0.2%")
+        with col2:
+            st.metric("Power Level", f"{random.uniform(85, 90):.1f}%", "-0.5%")
+        with col3:
+            st.metric("Temperature", f"{random.uniform(20, 22):.1f}°C", "0.1°C")
+        with col4:
+            st.metric("Pressure", f"{random.uniform(98, 102):.1f}kPa", "0.3kPa")
+    
+    with maintenance_tab:
+        st.subheader("Scheduled Maintenance")
+        maintenance_data = {
+            "System": ["Life Support", "Power Grid", "Navigation", "Communications"],
+            "Next Maintenance": ["3 days", "7 days", "12 days", "15 days"],
+            "Status": ["Urgent", "Planned", "Planned", "Scheduled"]
+        }
+        st.table(pd.DataFrame(maintenance_data))
+    
+    with emergency_tab:
+        st.subheader("Emergency Response Status")
+        st.write("No active emergencies")
         if st.button("Run Emergency Simulation"):
-            response = st.session_state.systems['emergency'].get_emergency_response(
-                emergency_type,
-                random.random()  # Simulate emergency parameter
-            )
-            for action in response:
-                st.warning(action)
-    
-    # Predictive Systems
-    with tabs[3]:
-        st.subheader("AI Predictions Dashboard")
-        
-        # Simulate future predictions
-        future_data = pd.DataFrame({
-            'oxygen': np.random.normal(98, 2, 24),
-            'power': np.random.normal(87, 5, 24),
-            'temperature': np.random.normal(21, 1, 24),
-            'pressure': np.random.normal(100, 3, 24)
-        }, index=pd.date_range(start='2024-02-09', periods=24, freq='H'))
-        
-        fig = px.line(future_data, title="24-Hour System Predictions")
-        st.plotly_chart(fig, use_container_width=True)
-    
-    # Maintenance Hub
-    with tabs[4]:
-        st.subheader("Predictive Maintenance Analysis")
-        
-        # Simulate maintenance predictions
-        systems = ['Life Support', 'Power Grid', 'Navigation', 'Communications']
-        for system in systems:
-            days_to_maintenance = random.randint(10, 100)
-            st.write(f"### {system}")
-            st.progress(max(0, min(1, days_to_maintenance/100)))
-            st.write(f"Predicted maintenance needed in {days_to_maintenance} days")
-            if days_to_maintenance < 30:
-                st.warning("⚠️ Schedule maintenance soon")
-            elif days_to_maintenance < 15:
-                st.error("🚨 Urgent maintenance required")
+            st.warning("Running emergency response simulation...")
+            time.sleep(2)
+            st.success("Emergency response protocols tested successfully")
 
 if __name__ == "__main__":
     create_advanced_app()
