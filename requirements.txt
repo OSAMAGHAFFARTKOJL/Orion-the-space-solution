@@ -1,0 +1,9 @@
+streamlit 
+tensorflow 
+torch 
+xgboost 
+prophet 
+plotly 
+pandas 
+numpy 
+scikit-learn
