@@ -8,6 +8,11 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
+from autogen import AssistantAgent, UserProxyAgent
+
+# Initialize AutoGen Agents
+assistant = AssistantAgent("ORION_AI")
+user_proxy = UserProxyAgent("User")
 
 # Main Application
 def create_advanced_app():
@@ -60,7 +65,8 @@ def create_advanced_app():
             ['radiation_storm', 'power_failure', 'life_support_critical', 'hull_breach']
         )
         if st.button("Run Emergency Simulation"):
-            st.warning(f"Simulated response for {emergency_type}.")
+            response = assistant.initiate_conversation(user_proxy, f"Handle {emergency_type} situation effectively.")
+            st.warning(f"Simulated response: {response}")
     
     # Predictive Systems
     with tabs[3]:
