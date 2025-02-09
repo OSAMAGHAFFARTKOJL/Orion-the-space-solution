@@ -7,4 +7,11 @@ plotly
 pandas 
 numpy 
 scikit-learn
-autogen 
+torchvision 
+transformers 
+tensorflow 
+scikit-learn 
+xgboost 
+prophet 
+joblib 
+opencv-python
