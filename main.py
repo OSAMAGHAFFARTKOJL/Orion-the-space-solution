@@ -2,112 +2,257 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.ensemble import IsolationForest
+from datetime import datetime, timedelta
 import torch
 import torch.nn as nn
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import IsolationForest
+import xgboost as xgb
+from transformers import pipeline
+import autogen
+from autogen import AssistantAgent, UserProxyAgent
+from crewai import Agent, Task, Crew, Process
+import json
 import random
+from collections import deque
 
-# Deep System Predictor using PyTorch
-class DeepSystemPredictor(nn.Module):
-    def __init__(self, input_size=4, hidden_size=64, num_layers=2):
-        super(DeepSystemPredictor, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
-        self.dropout = nn.Dropout(0.2)
-        self.fc = nn.Sequential(
-            nn.Linear(hidden_size, 32),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(32, input_size)
-        )
-    
-    def forward(self, x):
-        lstm_out, _ = self.lstm(x)
-        lstm_out = self.dropout(lstm_out[:, -1, :])
-        return self.fc(lstm_out)
-
-class SimpleAnomalyDetector:
+# 1. Advanced Anomaly Detection System
+class AnomalyDetectionSystem:
     def __init__(self):
-        self.scaler = MinMaxScaler()
         self.isolation_forest = IsolationForest(contamination=0.1, random_state=42)
-        self.is_fitted = False
-        
-        # Initialize with some default data
-        self._initialize_with_default_data()
+        self.autoencoder = AutoEncoder(input_size=4)
+        self.scaler = MinMaxScaler()
+        self._initialize_system()
     
-    def _initialize_with_default_data(self):
-        # Create default training data
+    def _initialize_system(self):
+        # Initialize with default data
         default_data = pd.DataFrame({
             'oxygen': np.random.normal(98, 1, 100),
             'power': np.random.normal(87, 3, 100),
             'temperature': np.random.normal(21, 0.5, 100),
             'pressure': np.random.normal(100, 2, 100)
         })
-        
-        # Fit scaler and isolation forest with default data
         self.scaler.fit(default_data)
         self.isolation_forest.fit(self.scaler.transform(default_data))
-        self.is_fitted = True
-    
+        
     def detect_anomalies(self, data):
-        try:
-            if isinstance(data, pd.DataFrame):
-                scaled_data = self.scaler.transform(data)
-            else:
-                scaled_data = self.scaler.transform(data.reshape(1, -1))
-            
-            return self.isolation_forest.predict(scaled_data)[0] == -1
-        except Exception as e:
-            st.error(f"Anomaly detection error: {str(e)}")
-            return False
+        scaled_data = self.scaler.transform(data.reshape(1, -1))
+        isolation_score = self.isolation_forest.predict(scaled_data)[0]
+        
+        # Convert to tensor for autoencoder
+        data_tensor = torch.FloatTensor(scaled_data)
+        reconstruction_error = self.autoencoder.get_reconstruction_error(data_tensor)
+        
+        return {
+            'is_anomaly': isolation_score == -1 or reconstruction_error > 0.1,
+            'anomaly_score': float(reconstruction_error),
+            'confidence': float(abs(reconstruction_error - 0.1))
+        }
 
-class AISystem:
+# 2. Predictive Maintenance System using LSTM
+class MaintenancePredictor(nn.Module):
+    def __init__(self, input_size=4, hidden_size=64):
+        super(MaintenancePredictor, self).__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
+        
+    def forward(self, x):
+        lstm_out, _ = self.lstm(x)
+        return self.fc(lstm_out[:, -1, :])
+
+# 3. Resource Optimization using Reinforcement Learning
+class ResourceOptimizer:
     def __init__(self):
-        self.predictor = DeepSystemPredictor()
-        self.anomaly_detector = SimpleAnomalyDetector()
+        self.state_size = 4
+        self.action_size = 5  # Different resource allocation strategies
+        self.memory = deque(maxlen=2000)
+        self.gamma = 0.95
+        self.epsilon = 1.0
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.model = self._build_model()
+    
+    def _build_model(self):
+        model = nn.Sequential(
+            nn.Linear(self.state_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, self.action_size)
+        )
+        return model
+    
+    def get_action(self, state):
+        if random.random() <= self.epsilon:
+            return random.randrange(self.action_size)
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state).unsqueeze(0)
+            action_values = self.model(state_tensor)
+            return torch.argmax(action_values).item()
+
+# 4. AutoEncoder for Anomaly Detection
+class AutoEncoder(nn.Module):
+    def __init__(self, input_size):
+        super(AutoEncoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, 8),
+            nn.ReLU(),
+            nn.Linear(8, 4),
+            nn.ReLU(),
+            nn.Linear(4, 2)
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(2, 4),
+            nn.ReLU(),
+            nn.Linear(4, 8),
+            nn.ReLU(),
+            nn.Linear(8, input_size)
+        )
+    
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
+    
+    def get_reconstruction_error(self, x):
+        with torch.no_grad():
+            output = self(x)
+            return torch.mean((x - output) ** 2).item()
+
+# 5. Mission Report Generator using Transformers
+class MissionReportGenerator:
+    def __init__(self):
+        self.summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+    
+    def generate_report(self, system_data, events):
+        # Create a detailed description of system status and events
+        system_status = self._format_system_status(system_data)
+        event_summary = self._format_events(events)
+        
+        full_text = f"{system_status}\n\n{event_summary}"
+        summary = self.summarizer(full_text, max_length=130, min_length=30)[0]['summary_text']
+        
+        return {
+            'summary': summary,
+            'full_report': full_text,
+            'timestamp': datetime.now().isoformat()
+        }
+    
+    def _format_system_status(self, data):
+        return f"System Status Report: Oxygen levels at {data['oxygen']:.1f}%, " \
+               f"Power at {data['power']:.1f}%, Temperature at {data['temperature']:.1f}°C, " \
+               f"Pressure at {data['pressure']:.1f}kPa."
+    
+    def _format_events(self, events):
+        return "\n".join([f"- {event}" for event in events])
+
+# 6. ORION Master Control System
+class ORIONSystem:
+    def __init__(self):
+        self.anomaly_detector = AnomalyDetectionSystem()
+        self.maintenance_predictor = MaintenancePredictor()
+        self.resource_optimizer = ResourceOptimizer()
+        self.report_generator = MissionReportGenerator()
+        self.events = []
+        
+        # Initialize AutoGen agents
+        self.setup_autogen_agents()
+        
+        # Initialize CrewAI
+        self.setup_crew()
+    
+    def setup_autogen_agents(self):
+        self.system_monitor = AssistantAgent(
+            name="system_monitor",
+            system_message="I monitor all system metrics and coordinate responses.",
+            llm_config={"temperature": 0.7}
+        )
+        
+        self.human_proxy = UserProxyAgent(
+            name="human_operator",
+            code_execution_config={"work_dir": "tasks"},
+            human_input_mode="TERMINATE"
+        )
+    
+    def setup_crew(self):
+        self.analyst = Agent(
+            role='System Analyst',
+            goal='Analyze system performance and identify optimization opportunities',
+            backstory='Expert in system analysis with years of experience in AI systems',
+            allow_delegation=True
+        )
+        
+        self.engineer = Agent(
+            role='System Engineer',
+            goal='Implement system improvements and maintain optimal performance',
+            backstory='Experienced engineer specialized in AI system optimization',
+            allow_delegation=True
+        )
+        
+        self.crew = Crew(
+            agents=[self.analyst, self.engineer],
+            tasks=[
+                Task(description='Monitor system performance', agent=self.analyst),
+                Task(description='Implement optimizations', agent=self.engineer)
+            ],
+            process=Process.sequential
+        )
     
     def process_data(self, data):
         try:
-            # Convert to tensor for prediction
+            # Convert data to proper format
             if isinstance(data, pd.DataFrame):
-                data_tensor = torch.FloatTensor(data.values)
+                current_data = data.iloc[0].to_dict()
             else:
-                data_tensor = torch.FloatTensor(data)
+                current_data = data
             
-            # Make prediction
-            with torch.no_grad():
-                predictions = self.predictor(data_tensor.unsqueeze(0))
+            # 1. Anomaly Detection
+            anomaly_results = self.anomaly_detector.detect_anomalies(
+                np.array([current_data[k] for k in ['oxygen', 'power', 'temperature', 'pressure']])
+            )
             
-            # Check for anomalies
-            anomalies = self.anomaly_detector.detect_anomalies(data)
+            # 2. Resource Optimization
+            optimized_action = self.resource_optimizer.get_action(
+                [current_data[k] for k in ['oxygen', 'power', 'temperature', 'pressure']]
+            )
+            
+            # 3. Log events
+            if anomaly_results['is_anomaly']:
+                self.events.append(f"Anomaly detected at {datetime.now().isoformat()}")
+            
+            # 4. Generate report
+            report = self.report_generator.generate_report(current_data, self.events)
             
             return {
-                'predictions': predictions.numpy().tolist(),
-                'anomalies': bool(anomalies),
+                'anomaly_detection': anomaly_results,
+                'optimization_action': optimized_action,
+                'report': report,
                 'timestamp': datetime.now().isoformat()
             }
+            
         except Exception as e:
-            st.error(f"Processing error: {str(e)}")
+            st.error(f"Error in ORION system: {str(e)}")
             return None
 
-def create_app():
-    st.set_page_config(page_title="AI Control System", layout="wide")
+# Streamlit Interface
+def create_orion_interface():
+    st.set_page_config(page_title="ORION Advanced AI Control", layout="wide")
     
-    # Initialize AI system
-    if 'ai_system' not in st.session_state:
-        st.session_state.ai_system = AISystem()
+    if 'orion' not in st.session_state:
+        st.session_state.orion = ORIONSystem()
     
-    st.title("🚀 AI Control System")
+    st.title("🚀 ORION Advanced AI Control System")
     
-    # Data Input Section
-    st.header("📊 Data Input")
-    input_method = st.radio("Select input method:", ["Manual Input", "Sample Data"])
+    # Main Tabs
+    tabs = st.tabs([
+        "System Control",
+        "Analysis Dashboard",
+        "Mission Reports",
+        "Resource Management"
+    ])
     
-    user_data = None
-    
-    if input_method == "Manual Input":
-        st.subheader("Enter System Metrics")
+    with tabs[0]:
+        st.header("System Control")
         col1, col2 = st.columns(2)
         
         with col1:
@@ -118,59 +263,47 @@ def create_app():
             temperature = st.number_input("Temperature (°C)", -50.0, 100.0, 21.0)
             pressure = st.number_input("Pressure (kPa)", 0.0, 200.0, 100.0)
         
-        if st.button("Process Data"):
-            user_data = pd.DataFrame({
-                'oxygen': [oxygen],
-                'power': [power],
-                'temperature': [temperature],
-                'pressure': [pressure]
-            })
-            st.success("Data submitted!")
-    
-    else:  # Sample Data
-        if st.button("Generate Sample Data"):
-            user_data = pd.DataFrame({
-                'oxygen': [random.uniform(95, 100)],
-                'power': [random.uniform(80, 95)],
-                'temperature': [random.uniform(20, 22)],
-                'pressure': [random.uniform(98, 102)]
-            })
-            st.success("Sample data generated!")
-    
-    # Process and Display Results
-    if user_data is not None:
-        st.header("🔍 Analysis Results")
-        
-        with st.spinner("Processing data..."):
-            results = st.session_state.ai_system.process_data(user_data)
-        
-        if results:
-            # Display results
-            col1, col2 = st.columns(2)
+        if st.button("Process System Data"):
+            data = {
+                'oxygen': oxygen,
+                'power': power,
+                'temperature': temperature,
+                'pressure': pressure
+            }
             
-            with col1:
-                st.subheader("System Status")
-                if results['anomalies']:
-                    st.error("⚠️ Anomalies Detected")
+            with st.spinner("Processing data..."):
+                results = st.session_state.orion.process_data(data)
+            
+            if results:
+                # Display Anomaly Results
+                st.subheader("System Analysis")
+                if results['anomaly_detection']['is_anomaly']:
+                    st.error("⚠️ Anomaly Detected!")
+                    st.write(f"Anomaly Score: {results['anomaly_detection']['anomaly_score']:.3f}")
                 else:
                     st.success("✅ System Normal")
-            
-            with col2:
-                st.subheader("Latest Readings")
-                st.dataframe(user_data)
-            
-            # Display current metrics
-            st.header("📊 Current Metrics")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Oxygen Level", f"{user_data['oxygen'].iloc[0]:.1f}%")
-            with col2:
-                st.metric("Power Level", f"{user_data['power'].iloc[0]:.1f}%")
-            with col3:
-                st.metric("Temperature", f"{user_data['temperature'].iloc[0]:.1f}°C")
-            with col4:
-                st.metric("Pressure", f"{user_data['pressure'].iloc[0]:.1f}kPa")
+                
+                # Display Report Summary
+                st.subheader("Latest Report")
+                st.write(results['report']['summary'])
+    
+    with tabs[1]:
+        st.header("Analysis Dashboard")
+        # Add historical data visualization here
+        
+    with tabs[2]:
+        st.header("Mission Reports")
+        if st.session_state.orion.events:
+            for event in st.session_state.orion.events:
+                st.write(event)
+        else:
+            st.write("No events recorded yet.")
+    
+    with tabs[3]:
+        st.header("Resource Management")
+        st.write("Current Resource Allocation Strategy:", 
+                ["Balanced", "Power Saving", "Maximum Performance", "Safety Mode", "Custom"]
+                [st.session_state.orion.resource_optimizer.get_action([oxygen, power, temperature, pressure])])
 
 if __name__ == "__main__":
-    create_app()
+    create_orion_interface()
