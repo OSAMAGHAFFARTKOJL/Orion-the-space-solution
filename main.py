@@ -12,7 +12,7 @@ from autogen import AssistantAgent, UserProxyAgent
 
 # Initialize AutoGen Agents
 assistant = AssistantAgent("ORION_AI")
-user_proxy = UserProxyAgent("User")
+user_proxy = UserProxyAgent("User", code_execution_config={"use_docker": False})
 
 # Main Application
 def create_advanced_app():
