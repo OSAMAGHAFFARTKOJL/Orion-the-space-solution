@@ -65,8 +65,10 @@ def create_advanced_app():
             ['radiation_storm', 'power_failure', 'life_support_critical', 'hull_breach']
         )
         if st.button("Run Emergency Simulation"):
-            response = assistant.initiate_conversation(user_proxy, f"Handle {emergency_type} situation effectively.")
+            messages = [{"role": "user", "content": f"Handle {emergency_type} situation effectively."}]
+            response = user_proxy.initiate_chat(assistant, messages)
             st.warning(f"Simulated response: {response}")
+
     
     # Predictive Systems
     with tabs[3]:
