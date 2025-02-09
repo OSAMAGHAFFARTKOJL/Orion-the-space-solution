@@ -33,15 +33,26 @@ class DeepSystemPredictor(nn.Module):
         lstm_out = self.dropout(lstm_out[:, -1, :])
         return self.fc(lstm_out)
 
-# Advanced Anomaly Detection System
 class AdvancedAnomalyDetector:
     def __init__(self):
         self.isolation_forest = IsolationForest(contamination=0.1, random_state=42)
         self.prophet_models = {}
         self.scaler = MinMaxScaler()
+        self.is_fitted = False
+        
+    def fit(self, data):
+        """Fit the detector with initial data"""
+        if isinstance(data, pd.DataFrame):
+            self.scaler.fit(data.values)
+        else:
+            self.scaler.fit(data.reshape(-1, 4))  # Assuming 4 features
+        self.is_fitted = True
         
     def train(self, historical_data):
-        scaled_data = self.scaler.fit_transform(historical_data)
+        if not self.is_fitted:
+            self.fit(historical_data)
+            
+        scaled_data = self.scaler.transform(historical_data)
         self.isolation_forest.fit(scaled_data)
         
         for i, column in enumerate(historical_data.columns):
@@ -53,7 +64,16 @@ class AdvancedAnomalyDetector:
             self.prophet_models[column] = m.fit(df)
     
     def detect_anomalies(self, data):
-        scaled_data = self.scaler.transform(data.reshape(1, -1))
+        if not self.is_fitted:
+            # If not fitted, fit with the current data
+            self.fit(data)
+            return False  # Return False for first data point
+            
+        if isinstance(data, pd.DataFrame):
+            scaled_data = self.scaler.transform(data.values)
+        else:
+            scaled_data = self.scaler.transform(data.reshape(1, -1))
+            
         isolation_forest_pred = self.isolation_forest.predict(scaled_data)
         
         prophet_anomalies = []
@@ -64,7 +84,6 @@ class AdvancedAnomalyDetector:
         
         return isolation_forest_pred[0] == -1 or any(prophet_anomalies)
 
-# Enhanced AI System
 class EnhancedAISystem:
     def __init__(self):
         self.predictor = DeepSystemPredictor()
@@ -72,6 +91,16 @@ class EnhancedAISystem:
         
     def process_user_data(self, user_data):
         try:
+            # Generate some initial training data if none exists
+            if not self.anomaly_detector.is_fitted:
+                training_data = pd.DataFrame({
+                    'oxygen': np.random.normal(98, 1, 100),
+                    'power': np.random.normal(87, 3, 100),
+                    'temperature': np.random.normal(21, 0.5, 100),
+                    'pressure': np.random.normal(100, 2, 100)
+                })
+                self.anomaly_detector.train(training_data)
+            
             # Convert data to tensor for prediction
             data_tensor = torch.FloatTensor(user_data.values)
             
@@ -90,7 +119,6 @@ class EnhancedAISystem:
         except Exception as e:
             st.error(f"Error processing data: {str(e)}")
             return None
-
 # Streamlit Interface
 def create_advanced_app():
     st.set_page_config(page_title="ORION Advanced AI Control", layout="wide")
