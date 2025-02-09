@@ -4,25 +4,18 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
-import tensorflow as tf
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import IsolationForest
 import xgboost as xgb
 from prophet import Prophet
 import torch
 import torch.nn as nn
-import joblib
 from collections import deque
 import random
 import time
 import json
-import autogen
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
-from crewai import Agent, Task, Crew, Process
-import agentops as ao
 
-# Deep System Predictor
+# Deep System Predictor using PyTorch
 class DeepSystemPredictor(nn.Module):
     def __init__(self, input_size=4, hidden_size=64, num_layers=2):
         super(DeepSystemPredictor, self).__init__()
@@ -40,7 +33,7 @@ class DeepSystemPredictor(nn.Module):
         lstm_out = self.dropout(lstm_out[:, -1, :])
         return self.fc(lstm_out)
 
-# Advanced Anomaly Detection
+# Advanced Anomaly Detection System
 class AdvancedAnomalyDetector:
     def __init__(self):
         self.isolation_forest = IsolationForest(contamination=0.1, random_state=42)
@@ -71,117 +64,32 @@ class AdvancedAnomalyDetector:
         
         return isolation_forest_pred[0] == -1 or any(prophet_anomalies)
 
-# Enhanced AI System with AutoGen, CrewAI, and AgentOps
+# Enhanced AI System
 class EnhancedAISystem:
     def __init__(self):
-        # Initialize AgentOps monitoring
-        self.agent_ops = ao.init_monitoring(
-            project_name="ORION-AI-Control",
-            metadata={"system_version": "1.0"}
-        )
-        
-        # Initialize base systems
         self.predictor = DeepSystemPredictor()
         self.anomaly_detector = AdvancedAnomalyDetector()
         
-        # Initialize AutoGen agents
-        self.setup_autogen_agents()
-        
-        # Initialize CrewAI agents
-        self.setup_crewai_agents()
-    
-    def setup_autogen_agents(self):
-        self.system_monitor = AssistantAgent(
-            name="system_monitor",
-            system_message="I monitor all system metrics and coordinate responses.",
-            llm_config={"temperature": 0.7}
-        )
-        
-        self.maintenance_agent = AssistantAgent(
-            name="maintenance_agent",
-            system_message="I handle predictive maintenance and repairs.",
-            llm_config={"temperature": 0.3}
-        )
-        
-        self.emergency_agent = AssistantAgent(
-            name="emergency_agent",
-            system_message="I handle emergency situations and coordinate responses.",
-            llm_config={"temperature": 0.1}
-        )
-        
-        self.human_proxy = UserProxyAgent(
-            name="human_operator",
-            code_execution_config={"work_dir": "tasks"},
-            human_input_mode="TERMINATE"
-        )
-        
-        self.agents = [
-            self.system_monitor,
-            self.maintenance_agent,
-            self.emergency_agent,
-            self.human_proxy
-        ]
-        
-        self.group_chat = GroupChat(
-            agents=self.agents,
-            messages=[],
-            max_round=50
-        )
-        
-        self.manager = GroupChatManager(groupchat=self.group_chat)
-    
-    def setup_crewai_agents(self):
-        self.analyst = Agent(
-            role='System Analyst',
-            goal='Analyze system performance and identify optimization opportunities',
-            backstory='Expert in system analysis with years of experience in AI systems',
-            allow_delegation=True
-        )
-        
-        self.engineer = Agent(
-            role='System Engineer',
-            goal='Implement system improvements and maintain optimal performance',
-            backstory='Experienced engineer specialized in AI system optimization',
-            allow_delegation=True
-        )
-        
-        self.crew = Crew(
-            agents=[self.analyst, self.engineer],
-            tasks=[
-                Task(
-                    description='Monitor system performance',
-                    agent=self.analyst
-                ),
-                Task(
-                    description='Implement optimizations',
-                    agent=self.engineer
-                )
-            ],
-            process=Process.sequential
-        )
-
     def process_user_data(self, user_data):
-        with self.agent_ops.start_monitoring() as mon:
-            try:
-                # Process data with anomaly detection
-                anomalies = self.anomaly_detector.detect_anomalies(user_data.values)
-                
-                # Use AutoGen for analysis
-                self.manager.initiate_chat(
-                    self.system_monitor,
-                    message=f"Analyzing new user data. Anomalies detected: {anomalies}"
-                )
-                
-                # Use CrewAI for optimization
-                results = self.crew.run()
-                
-                return {
-                    'anomalies': anomalies,
-                    'analysis': results
-                }
-            except Exception as e:
-                mon.log_error(str(e))
-                raise e
+        try:
+            # Convert data to tensor for prediction
+            data_tensor = torch.FloatTensor(user_data.values)
+            
+            # Get predictions
+            with torch.no_grad():
+                predictions = self.predictor(data_tensor.unsqueeze(0))
+            
+            # Check for anomalies
+            anomalies = self.anomaly_detector.detect_anomalies(user_data.values)
+            
+            return {
+                'predictions': predictions.numpy().tolist(),
+                'anomalies': bool(anomalies),
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            st.error(f"Error processing data: {str(e)}")
+            return None
 
 # Streamlit Interface
 def create_advanced_app():
@@ -198,11 +106,16 @@ def create_advanced_app():
     upload_method = st.radio("Choose data input method:", 
                            ["Upload CSV", "Manual Input", "Sample Data"])
     
+    user_data = None
+    
     if upload_method == "Upload CSV":
         uploaded_file = st.file_uploader("Upload your CSV file", type=['csv'])
         if uploaded_file is not None:
-            user_data = pd.read_csv(uploaded_file)
-            st.success("Data uploaded successfully!")
+            try:
+                user_data = pd.read_csv(uploaded_file)
+                st.success("Data uploaded successfully!")
+            except Exception as e:
+                st.error(f"Error reading CSV: {str(e)}")
             
     elif upload_method == "Manual Input":
         st.subheader("Enter System Metrics")
@@ -224,46 +137,47 @@ def create_advanced_app():
             st.success("Data submitted successfully!")
             
     else:  # Sample Data
-        user_data = pd.DataFrame({
-            'oxygen': np.random.normal(98, 1, 100),
-            'power': np.random.normal(87, 3, 100),
-            'temperature': np.random.normal(21, 0.5, 100),
-            'pressure': np.random.normal(100, 2, 100)
-        })
-        st.success("Sample data loaded!")
+        if st.button("Generate Sample Data"):
+            user_data = pd.DataFrame({
+                'oxygen': np.random.normal(98, 1, 100),
+                'power': np.random.normal(87, 3, 100),
+                'temperature': np.random.normal(21, 0.5, 100),
+                'pressure': np.random.normal(100, 2, 100)
+            })
+            st.success("Sample data generated!")
     
     # Analysis Section
-    if 'user_data' in locals():
+    if user_data is not None:
         st.header("🔍 Analysis Results")
         
         with st.spinner("Processing data..."):
             results = st.session_state.ai_system.process_user_data(user_data)
         
-        # Display results
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("System Status")
-            if results['anomalies']:
-                st.error("⚠️ Anomalies Detected")
-            else:
-                st.success("✅ System Normal")
-        
-        with col2:
-            st.subheader("AI Analysis")
-            st.json(results['analysis'])
-        
-        # Visualizations
-        st.subheader("📈 Data Visualization")
-        fig = px.line(user_data, title="System Metrics Over Time")
-        st.plotly_chart(fig, use_container_width=True)
+        if results:
+            # Display results
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("System Status")
+                if results['anomalies']:
+                    st.error("⚠️ Anomalies Detected")
+                else:
+                    st.success("✅ System Normal")
+            
+            with col2:
+                st.subheader("Prediction Summary")
+                st.json(results)
+            
+            # Visualizations
+            st.subheader("📈 Data Visualization")
+            fig = px.line(user_data, title="System Metrics Over Time")
+            st.plotly_chart(fig, use_container_width=True)
     
     # Monitoring Dashboard
     st.header("📊 System Monitoring")
-    metrics_tab, maintenance_tab, emergency_tab = st.tabs([
+    metrics_tab, alerts_tab = st.tabs([
         "Real-time Metrics",
-        "Maintenance Status",
-        "Emergency Response"
+        "System Alerts"
     ])
     
     with metrics_tab:
@@ -277,22 +191,12 @@ def create_advanced_app():
         with col4:
             st.metric("Pressure", f"{random.uniform(98, 102):.1f}kPa", "0.3kPa")
     
-    with maintenance_tab:
-        st.subheader("Scheduled Maintenance")
-        maintenance_data = {
-            "System": ["Life Support", "Power Grid", "Navigation", "Communications"],
-            "Next Maintenance": ["3 days", "7 days", "12 days", "15 days"],
-            "Status": ["Urgent", "Planned", "Planned", "Scheduled"]
-        }
-        st.table(pd.DataFrame(maintenance_data))
-    
-    with emergency_tab:
-        st.subheader("Emergency Response Status")
-        st.write("No active emergencies")
-        if st.button("Run Emergency Simulation"):
-            st.warning("Running emergency response simulation...")
-            time.sleep(2)
-            st.success("Emergency response protocols tested successfully")
+    with alerts_tab:
+        st.subheader("System Alerts")
+        if random.random() < 0.2:  # 20% chance of showing an alert
+            st.warning("Minor power fluctuation detected in sector 7")
+        else:
+            st.success("All systems operating normally")
 
 if __name__ == "__main__":
     create_advanced_app()
