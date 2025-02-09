@@ -3,7 +3,7 @@ pandas
 numpy
 plotly
 tensorflow
-sklearn
+scikit-learn
 xgboost
 prophet
 torch
