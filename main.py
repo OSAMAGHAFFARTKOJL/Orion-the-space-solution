@@ -4,30 +4,43 @@ import pandas as pd
 import plotly.express as px
 import torch
 import torch.nn as nn
-import tensorflow as tf
 import random
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import IsolationForest
 from collections import deque
 
-# ---------------------- FIXED ANOMALY DETECTOR ---------------------- #
+# ---------------------- LSTM MODEL FOR PREDICTIVE MAINTENANCE ---------------------- #
+class LSTMFailurePredictor(nn.Module):
+    def __init__(self, input_size=4, hidden_size=50, output_size=4, num_layers=2):
+        super(LSTMFailurePredictor, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :])
+        return out
+
+# ---------------------- ANOMALY DETECTOR ---------------------- #
 class AnomalyDetector:
     def __init__(self):
         self.model = IsolationForest(contamination=0.1)
         self.scaler = MinMaxScaler()
-        self.fitted = False  # Track if scaler is fitted
+        self.fitted = False  
 
     def train(self, data):
-        """Train the model on historical data"""
-        if len(data) > 0:
-            self.scaler.fit(data)  # Fit the scaler only if data exists
+        if len(data) > 5:
+            self.scaler.fit(data)  
             self.model.fit(self.scaler.transform(data))
-            self.fitted = True
+            self.fitted = True  
 
     def detect(self, sample):
-        """Detect anomalies in new data"""
         if not self.fitted:
-            return False  # Avoid errors if no training data
+            return False  
         return self.model.predict(self.scaler.transform(sample.reshape(1, -1)))[0] == -1
 
 # ---------------------- STREAMLIT DASHBOARD ---------------------- #
@@ -37,7 +50,8 @@ st.set_page_config(page_title="ORION AI Control", layout="wide")
 if "orion" not in st.session_state:
     st.session_state.orion = {
         "anomaly": AnomalyDetector(),
-        "history": [],
+        "predictor": LSTMFailurePredictor(),
+        "history": deque(maxlen=50),  
     }
 
 st.title("🚀 ORION AI-Powered Space Operations")
@@ -56,13 +70,29 @@ st.session_state.orion["history"].append(user_data)
 
 # **Train Anomaly Detector with Historical Data**
 history_array = np.array(st.session_state.orion["history"])
-if len(history_array) > 5:  # Ensure sufficient data before training
+if len(history_array) > 5:  
     st.session_state.orion["anomaly"].train(history_array)
 
 # **Anomaly Detection**
 st.subheader("Anomaly Detection")
 is_anomaly = st.session_state.orion["anomaly"].detect(user_data)
 st.warning("⚠️ Anomaly Detected!") if is_anomaly else st.success("✅ No anomalies detected.")
+
+# **Predict System Health with LSTM**
+if len(history_array) >= 10:  
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(history_array)
+
+    input_seq = torch.tensor(scaled_data[-10:].reshape(1, 10, 4), dtype=torch.float32)
+    with torch.no_grad():
+        prediction = st.session_state.orion["predictor"](input_seq).numpy().flatten()
+
+    predicted_data = scaler.inverse_transform([prediction])[0]  
+    st.subheader("🔮 LSTM Predicted System Status for Next Cycle")
+    st.write(f"📌 **Oxygen:** {predicted_data[0]:.2f}%")
+    st.write(f"⚡ **Power:** {predicted_data[1]:.2f}%")
+    st.write(f"🌡️ **Temperature:** {predicted_data[2]:.2f}°C")
+    st.write(f"🛠️ **Pressure:** {predicted_data[3]:.2f} kPa")
 
 # **Show History**
 st.subheader("Historical Data")
